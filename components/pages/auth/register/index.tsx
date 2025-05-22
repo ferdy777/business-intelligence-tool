@@ -25,7 +25,6 @@ const RegisterForm = () => {
     e.preventDefault();
     setError(null);
 
-    // ✅ Client-side validations
     if (!fullName.trim()) return setError("Full name is required.");
     if (!email.trim()) return setError("Email is required.");
     if (!password || password.length < 6)
@@ -35,6 +34,7 @@ const RegisterForm = () => {
     try {
       await register(fullName, email, password, remember);
       router.replace("/dashboard");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       setError(err?.message || "Registration failed");
     } finally {
@@ -98,7 +98,7 @@ const RegisterForm = () => {
         <button
           type="submit"
           disabled={loading}
-          className={`w-full p-2 rounded text-white ${
+          className={`w-full p-2 rounded cursor-pointer text-white ${
             loading ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"
           }`}
         >

@@ -91,7 +91,7 @@ const LoginForm = () => {
         <button
           type="submit"
           disabled={loading}
-          className={`w-full p-2 rounded text-white ${
+          className={`w-full p-2 rounded cursor-pointer text-white ${
             loading ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"
           }`}
         >
