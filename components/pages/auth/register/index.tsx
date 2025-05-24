@@ -1,110 +1,70 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useAuthContext } from "@/context/auth-context";
+import FormInput from "@/components/common/formInput";
+import Button from "@/components/common/button";
+import Link from "next/link";
+import { Path } from "@/navigations/routes";
+import useRegister from "./useRegister";
+import Container from "@/components/common/container";
 
 const RegisterForm = () => {
-  const { register, user } = useAuthContext();
-  const router = useRouter();
-
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [remember, setRemember] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (user) {
-      router.replace("/dashboard");
-    }
-  }, [user, router]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    if (!fullName.trim()) return setError("Full name is required.");
-    if (!email.trim()) return setError("Email is required.");
-    if (!password || password.length < 6)
-      return setError("Password must be at least 6 characters.");
-
-    setLoading(true);
-    try {
-      await register(fullName, email, password, remember);
-      router.replace("/dashboard");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
-      setError(err?.message || "Registration failed");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { error, form, handleChange, handleSubmit, loading } = useRegister();
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 text-black">
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white p-6 rounded shadow-md w-full max-w-md"
-        aria-label="Registration form"
-      >
-        <h2 className="text-2xl font-bold mb-4">Register</h2>
-
-        {error && (
-          <div className="mb-4 p-2 bg-red-200 text-red-800 rounded">
-            {error}
-          </div>
-        )}
-
-        <input
-          type="text"
-          placeholder="Full Name"
-          value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
-          required
-          className="w-full p-2 border border-gray-300 rounded mb-4"
-        />
-
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          className="w-full p-2 border border-gray-300 rounded mb-4"
-        />
-
-        <input
-          type="password"
-          placeholder="Password (min 6 chars)"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          minLength={6}
-          className="w-full p-2 border border-gray-300 rounded mb-4"
-        />
-
-        <label className="flex items-center mb-4 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={remember}
-            onChange={() => setRemember(!remember)}
-            className="mr-2"
-          />
-          Keep me logged in
-        </label>
-
-        <button
-          type="submit"
-          disabled={loading}
-          className={`w-full p-2 rounded cursor-pointer text-white ${
-            loading ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"
-          }`}
+    <div className="min-h-screen flex flex-col items-center justify-center">
+      <Container className="flex flex-col items-center">
+        <form
+          onSubmit={handleSubmit}
+          className="bg-white dark:bg-grey-dark px-6 py-10 rounded-lg shadow-lg w-full max-w-md"
+          aria-label="Registration form"
         >
-          {loading ? "Registering..." : "Register"}
-        </button>
-      </form>
+          <h2 className="text-2xl font-bold mb-4 text-center text-text-grey dark:text-white">
+            Register
+          </h2>
+          {error && (
+            <div className="mb-4 p-2 bg-red-200/30 dark:bg-red-200/10 text-center text-red-800 dark:text-red-300 rounded-lg">
+              {error}
+            </div>
+          )}
+          <FormInput
+            name="fullName"
+            onChange={handleChange}
+            label="Full Name"
+            value={form.fullName}
+            disabled={loading}
+          />
+          <FormInput
+            name="email"
+            onChange={handleChange}
+            label="Email"
+            type="email"
+            value={form.email}
+            disabled={loading}
+          />
+          <FormInput
+            name="password"
+            onChange={handleChange}
+            label="Password"
+            type="password"
+            value={form.password}
+            disabled={loading}
+          />
+          <div>
+            <Button
+              label="Register"
+              type="submit"
+              fullWidth
+              loading={loading}
+            />
+          </div>
+        </form>
+        <div className="flex text-[14px] gap-1 justify-center items-center mt-4 text-text-grey dark:text-white">
+          <p>Already have an account?</p>
+          <Link className="font-semibold underline" href={Path.Login}>
+            Login
+          </Link>
+        </div>
+      </Container>
     </div>
   );
 };

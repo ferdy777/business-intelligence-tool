@@ -1,4 +1,7 @@
 "use client";
+
+import { Api } from "@/types";
+import { useMemo } from "react";
 import {
   LineChart,
   Line,
@@ -9,26 +12,30 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-const data = [
-  { name: "Jan", sales: 400 },
-  { name: "Feb", sales: 300 },
-  { name: "Mar", sales: 500 },
-  { name: "Apr", sales: 600 },
-];
+interface Props {
+  dashboardData: Api.Dashboard.GetAnalytics.Response["data"] | undefined;
+  isLoading: boolean;
+}
 
-export default function SalesChart() {
+export default function SalesChart({ dashboardData, isLoading }: Props) {
+  const salesData = useMemo(() => {
+    if (!dashboardData) return [];
+    return dashboardData.salesChart;
+  }, [dashboardData]);
+
   return (
-    <div className="bg-white shadow rounded p-4 mb-6">
+    <div className="bg-white dark:bg-grey-dark shadow border border-black/5 rounded px-4 py-7 mb-6">
       <h2 className="text-lg font-semibold mb-4">Sales Trend</h2>
+      {isLoading && <p>Loading...</p>}
       <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={data}>
+        <LineChart data={salesData}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="name" />
           <YAxis />
           <Tooltip />
           <Line
             type="monotone"
-            dataKey="sales"
+            dataKey="value"
             stroke="#4F46E5"
             strokeWidth={2}
           />

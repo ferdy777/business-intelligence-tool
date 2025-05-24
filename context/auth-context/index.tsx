@@ -1,139 +1,191 @@
 "use client";
+
+import {
+  ACTIVITY_KEY,
+  AUTO_LOGOUT_KEY,
+  TIMEOUT_DURATION,
+  USER_STORAGE_KEY,
+} from "@/constants";
+import useToast from "@/hooks/useToast";
 import {
   createContext,
   useContext,
   useEffect,
   useState,
   ReactNode,
-  useCallback,
 } from "react";
-import { useRouter } from "next/navigation";
-import {
-  startInactivityTimer,
-  resetInactivityTimer,
-} from "@/lib/inactivityHandler";
+
+interface IUser {
+  name: string;
+  email: string;
+}
 
 type AuthContextType = {
-  user: string | null;
-  loading: boolean;
-  login: (email: string, password: string, remember: boolean) => Promise<void>;
-  logout: () => void;
-  remember: boolean;
-  register: (
-    fullName: string,
-    email: string,
-    password: string,
-    remember: boolean
-  ) => Promise<void>;
-};
-
-type StoredUser = {
-  email: string;
-  password: string;
-  fullName: string;
+  user: IUser | undefined;
+  isAuthenticated: boolean;
+  handleLoginSuccess: (data: IUser) => void;
+  handleLogout: () => void;
+  handleSetAutoLogout: () => void;
+  isAutoLogoutActive: boolean;
+  timeLeft: number;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true); // <-- Add loading state
-  const [remember, setRemember] = useState(false);
-  const router = useRouter();
+  const [user, setUser] = useState<IUser>();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAutoLogoutActive, setIsAutoLogoutActive] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(60);
+  const [lastActivity, setLastActivity] = useState(Date.now());
 
-  const logout = useCallback(() => {
-    setUser(null);
-    setRemember(false);
-    localStorage.removeItem("user");
-    router.push("/login");
-  }, [router]);
+  const { handleInfoToast, handleSuccessToast } = useToast();
 
   useEffect(() => {
-    const savedUser = localStorage.getItem("user");
-    if (savedUser) {
-      setUser(savedUser);
-      setRemember(true);
-    }
-    setLoading(false);
+    handleCheckUserInStorage();
+    handleCheckAutoLogoutInStorage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const login = async (
-    email: string,
-    password: string,
-    rememberFlag: boolean
-  ): Promise<void> => {
-    const users = JSON.parse(
-      localStorage.getItem("users") || "[]"
-    ) as StoredUser[];
-    const existingUser = users.find((u) => u.email === email);
-
-    if (!existingUser) {
-      throw new Error("Account does not exist.");
-    }
-
-    if (existingUser.password !== password) {
-      throw new Error("Invalid email or password.");
-    }
-
-    setUser(email);
-    setRemember(rememberFlag);
-
-    if (rememberFlag) {
-      localStorage.setItem("user", email);
-    } else {
-      localStorage.removeItem("user");
-    }
-
-    startInactivityTimer(logout, rememberFlag);
-  };
-
-  const register = async (
-    fullName: string,
-    email: string,
-    password: string,
-    rememberFlag: boolean
-  ): Promise<void> => {
-    if (!fullName.trim()) throw new Error("Full name is required");
-    if (!email.trim()) throw new Error("Email is required");
-    if (password.length < 6)
-      throw new Error("Password must be at least 6 characters long");
-
-    const users = JSON.parse(
-      localStorage.getItem("users") || "[]"
-    ) as StoredUser[];
-    const existingUser = users.find((u) => u.email === email);
-    if (existingUser) throw new Error("Email is already registered.");
-
-    const newUser: StoredUser = { fullName, email, password };
-    users.push(newUser);
-    localStorage.setItem("users", JSON.stringify(users));
-
-    await login(email, password, rememberFlag);
-  };
-
-  const resetTimer = useCallback(() => {
-    resetInactivityTimer(logout, remember);
-  }, [logout, remember]);
-
+  // Activity event listeners
   useEffect(() => {
-    if (!user) return;
+    if (!isAuthenticated || !isAutoLogoutActive) return;
 
-    const events = ["mousemove", "keydown", "mousedown", "touchstart"];
-    const reset = () => resetTimer();
+    const activityEvents = [
+      "mousedown",
+      "mousemove",
+      "keypress",
+      "scroll",
+      "touchstart",
+      "click",
+    ];
 
-    events.forEach((event) => window.addEventListener(event, reset));
+    const throttledUpdateActivity = (() => {
+      let timeout: NodeJS.Timeout | undefined | null;
+      return () => {
+        if (timeout) return;
+        timeout = setTimeout(() => {
+          const now = Date.now();
+          setLastActivity(now);
+          setTimeLeft(60);
+          localStorage.setItem(ACTIVITY_KEY, now.toString());
+          timeout = null;
+        }, 1000); // Throttle to once per second
+      };
+    })();
+
+    // Add event listeners
+    activityEvents.forEach((event) => {
+      document.addEventListener(event, throttledUpdateActivity, true);
+    });
+
+    // Cleanup
     return () => {
-      events.forEach((event) => window.removeEventListener(event, reset));
+      activityEvents.forEach((event) => {
+        document.removeEventListener(event, throttledUpdateActivity, true);
+      });
     };
-  }, [user, resetTimer]);
+  }, [isAuthenticated, isAutoLogoutActive]);
 
-  return (
-    <AuthContext.Provider
-      value={{ user, loading, login, logout, remember, register }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  // Timer countdown
+  useEffect(() => {
+    if (!isAuthenticated || !isAutoLogoutActive) return;
+
+    const timer = setInterval(() => {
+      const now = Date.now();
+      const timeSinceActivity = now - lastActivity;
+      const remaining = Math.ceil(
+        (TIMEOUT_DURATION - timeSinceActivity) / 1000
+      );
+
+      if (remaining <= 0) {
+        handleLogout();
+
+        handleInfoToast("Session timeout. Kindly login.");
+      } else {
+        setTimeLeft(remaining);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, isAutoLogoutActive, lastActivity]);
+
+  const handleCheckUserInStorage = () => {
+    try {
+      const userInStorage = localStorage.getItem(USER_STORAGE_KEY);
+      if (!userInStorage) return;
+
+      const parsedUser = JSON.parse(userInStorage) as IUser;
+      setUser(parsedUser);
+      setIsAuthenticated(true);
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (error) {}
+  };
+
+  const handleLoginSuccess = (data: IUser) => {
+    const stringifiedUser = JSON.stringify(data);
+    localStorage.setItem(USER_STORAGE_KEY, stringifiedUser);
+
+    setIsAuthenticated(true);
+    setUser(data);
+  };
+
+  const handleCheckAutoLogoutInStorage = () => {
+    try {
+      const autoLogoutSession = localStorage.getItem(AUTO_LOGOUT_KEY);
+      const savedActivity = localStorage.getItem(ACTIVITY_KEY);
+
+      if (autoLogoutSession === "active" && savedActivity) {
+        const timeSinceActivity = Date.now() - parseInt(savedActivity);
+
+        if (timeSinceActivity < TIMEOUT_DURATION) {
+          setIsAuthenticated(true);
+          setIsAutoLogoutActive(true);
+          setLastActivity(parseInt(savedActivity));
+          setTimeLeft(Math.ceil((TIMEOUT_DURATION - timeSinceActivity) / 1000));
+        } else {
+          // Session expired
+          handleLogout();
+        }
+      }
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (error) {}
+  };
+
+  const handleSetAutoLogout = () => {
+    const now = Date.now();
+
+    localStorage.setItem(ACTIVITY_KEY, now.toString());
+    localStorage.setItem(AUTO_LOGOUT_KEY, "active");
+    setIsAutoLogoutActive(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem(USER_STORAGE_KEY);
+    localStorage.removeItem(AUTO_LOGOUT_KEY);
+    localStorage.removeItem(ACTIVITY_KEY);
+
+    handleSuccessToast("Logout Successful");
+
+    setUser(undefined);
+    setIsAuthenticated(false);
+    setIsAutoLogoutActive(false);
+    setTimeLeft(60);
+    setLastActivity(Date.now());
+  };
+
+  const value: AuthContextType = {
+    handleLoginSuccess,
+    handleLogout,
+    isAuthenticated,
+    user,
+    handleSetAutoLogout,
+    isAutoLogoutActive,
+    timeLeft,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuthContext = () => {

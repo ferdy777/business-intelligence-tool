@@ -1,39 +1,49 @@
 "use client";
-import { useState } from "react";
 
-const mockData = [
-  { name: "Alice Johnson", email: "alice@example.com", sales: 1200 },
-  { name: "Bob Smith", email: "bob@example.com", sales: 900 },
-  { name: "Carol White", email: "carol@example.com", sales: 1500 },
-];
+import FormInput from "@/components/common/formInput";
+import { Api } from "@/types";
+import { useMemo, useState } from "react";
 
-export default function DataTable() {
+interface Props {
+  dashboardData: Api.Dashboard.GetAnalytics.Response["data"] | undefined;
+  isLoading: boolean;
+}
+
+export default function DataTable({ dashboardData, isLoading }: Props) {
   const [search, setSearch] = useState("");
   const [sortAsc, setSortAsc] = useState(true);
 
-  const filteredData = mockData
+  const salesData = useMemo(() => {
+    if (!dashboardData) return [];
+    return dashboardData.salesTable;
+  }, [dashboardData]);
+
+  const filteredData = salesData
     .filter((item) => item.name.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => (sortAsc ? a.sales - b.sales : b.sales - a.sales));
 
   return (
-    <div className="bg-white shadow rounded p-4">
-      <div className="flex justify-between items-center mb-4 pr-12">
+    <div className="bg-white dark:bg-grey-dark shadow rounded px-4 py-7 border border-black/5">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-4">
         <h2 className="text-lg font-semibold">Sales Table</h2>
-        <input
-          type="text"
-          placeholder="Search by name..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="border p-2 rounded text-sm"
-        />
+        {isLoading && <p>Loading...</p>}
+        <div className="w-full md:w-auto md:flex-1 md:max-w-[400px]">
+          <FormInput
+            name="search"
+            type="search"
+            placeholder="Search by name..."
+            showMargin={false}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
       </div>
       <table className="min-w-full text-sm">
         <thead>
-          <tr className="border-b">
-            <th className="text-left py-2">Name</th>
-            <th className="text-left py-2">Email</th>
+          <tr className="border-b border-black/10 dark:border-white/20">
+            <th className="text-left py-4 px-2">Name</th>
+            <th className="text-left py-4 px-2">Email</th>
             <th
-              className="text-left py-2 cursor-pointer"
+              className="text-left py-4 px-2 cursor-pointer"
               onClick={() => setSortAsc(!sortAsc)}
             >
               Sales {sortAsc ? "↑" : "↓"}
@@ -42,10 +52,13 @@ export default function DataTable() {
         </thead>
         <tbody>
           {filteredData.map((user, i) => (
-            <tr key={i} className="border-b hover:bg-gray-50">
-              <td className="py-2">{user.name}</td>
-              <td className="py-2">{user.email}</td>
-              <td className="py-2">${user.sales}</td>
+            <tr
+              key={i}
+              className="border-b border-black/10 dark:border-white/20 hover:bg-gray-50 dark:hover:bg-white/10"
+            >
+              <td className="py-4 px-2">{user.name}</td>
+              <td className="py-4 px-2">{user.email}</td>
+              <td className="py-4 px-2">${user.sales}</td>
             </tr>
           ))}
         </tbody>
